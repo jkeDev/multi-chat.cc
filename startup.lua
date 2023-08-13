@@ -104,7 +104,9 @@ elseif args[1] == 'rednet' then
 		local nw, nh = term.native().getSize()
 		local nx, ny = nw / 2, nh * 4 / 5
 		nw, nh = nw - nx + 1, nh - ny + 1
-		local notifyTerm = window.create(term.native(), nx, ny, nw, nh)
+		local notifyTimer = nil
+		local notifyTerm = window.create(term.native(), nx, ny, nw, nh, false)
+		notifyTerm.setBackgroundColor(colors.gray)
 		local function withTerm(redirect, func, ...)
 			local old = term.current()
 			term.redirect(redirect)
@@ -118,11 +120,20 @@ elseif args[1] == 'rednet' then
 					local from, message = rednet.receive(protocol)
 					if multishell.getFocus() ~= multishell.getCurrent() then
 						notifyTerm.clear()
+						if notifyTimer ~= nil then os.cancelTimer(notifyTimer) end
+						notifyTimer = os.startTimer(5)
+						notifyTerm.setVisible(true)
 						withTerm(notifyTerm,
 							print, ('%s\n%d: %s'):format(args[3], from, message))
 					end
 					withTerm(messageScreen,
 						print, ('%5d: %s'):format(from, message))
+				end
+			end,
+			function()
+				while true do
+					local _, id = os.pullEvent 'timer'
+					if id == notifyTimer then notifyTerm.setVisible(false) end
 				end
 			end,
 			function()
