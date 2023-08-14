@@ -30,7 +30,7 @@ local function update_from_source()
 	if type(json.sha) ~= 'string' or type(json.content) == 'string' then
 		error 'Mailformed response from github'
 	end
-	if get_hash() == json.sha then return true end
+	if get_hash() == json.sha then return end
 	if json.encoding ~= 'base64' then error(('Upstream is in non base64 encoding: %s'):format(json.encoding)) end
 	run_on_src('w', function(file)
 		file.write(('-- %s\n'):format(json.sha))
@@ -58,43 +58,44 @@ local function update_from_source()
 			end
 		end
 	end)
-	return true
 end
 local function update()
 	print 'Checking for updates'
 	rednet.broadcast('get-hash', meta_protocol)
 	local from, hash = rednet.receive(meta_protocol, 5)
-	if from == nil then return http ~= nil and update_from_source() end
-	if hash == get_hash() then return false end
+	if from == nil then
+		if http ~= nil then update_from_source() end
+		return
+	end
+	if hash == get_hash() then return end
 	rednet.send(from, 'get-src', meta_protocol)
 	local t0 = os.clock()
 	repeat
 		local from2, src = rednet.receive(meta_protocol, 5)
 		if from2 == from then
 			run_on_src('w', 'write', src)
-			return false
 		end
 	until os.clock() - t0 > 5
 	print 'Did not get update'
-	return false
 end
 
 local shellEnv = { shell = shell, multishell = multishell }
 if #args <= 0 then
 	peripheral.find('modem', rednet.open)
-	os.run(shellEnv, shell.getRunningProgram(), 'run', update())
+	update()
+	os.run(shellEnv, shell.getRunningProgram(), 'run')
 elseif args[1] == 'run' then
-	term.clear()
 	for name, protocol in pairs {
 		chat = 'rednet-chat',
 	} do
 		local pid = multishell.launch(shellEnv, shell.getRunningProgram(), 'rednet', protocol, name)
 		multishell.setTitle(pid, name)
 	end
+	term.clear()
 	term.setCursorPos(1, 1)
 	parallel.waitForAll(
 		function() os.run(shellEnv, 'rom/programs/shell.lua') end,
-		args[2] and function()
+		function()
 			local hash = get_hash()
 			local src = run_on_src('r', 'readAll')
 			while true do
@@ -106,7 +107,7 @@ elseif args[1] == 'run' then
 					rednet.send(from, src, meta_protocol)
 				end
 			end
-		end or function() end
+		end
 	)
 elseif args[1] == 'rednet' then
 	local protocol = args[2]
