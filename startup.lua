@@ -1,44 +1,59 @@
 local args = { ... }
 
-local function get_hash()
-	local file = fs.open(shell.getRunningProgram(), 'r')
-	local hash = file.readLine()
+local function run_on_src(mode, method, ...)
+	local file = fs.open(shell.getRunningProgram(), mode)
+	--- @cast file -nil -- since it should always exist
+	local ok, res
+	if type(method) == 'function' then
+		ok, res = pcall(method, file, ...)
+	else
+		ok, res = pcall(file[method], ...)
+	end
 	file.close()
-	return hash
+	if not ok then
+		error(res)
+	else
+		return res
+	end
 end
+local function get_hash() return run_on_src('r', 'readLine') end
 local function update_from_source()
 	print 'Trying remote source'
 	local response, err, errResponse = http.get 'https://api.github.com/repos/jkeDev/multi-chat.cc/contents/startup.lua'
+	--- @cast errResponse -nil when response is null
 	if response == nil then error(('[%s] %s'):format(errResponse.getResponseCode(), err)) end
-	local json = textutils.unserializeJSON(response.readAll(), { parse_empty_array = false })
+	local json = textutils.unserializeJSON(response.readAll() or '', { parse_empty_array = false }) or {}
+	if type(json.sha) ~= 'string' or type(json.content) == 'string' then
+		error 'Mailformed response from github'
+	end
 	if get_hash() == json.sha then return true end
 	if json.encoding ~= 'base64' then error(('Upstream is in non base64 encoding: %s'):format(json.encoding)) end
-	local file = fs.open(shell.getRunningProgram(), 'w')
-	file.write(('-- %s\n'):format(json.sha))
-	local b = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-	local raw = json.content:gsub('\n', '')
-	local buf, newlines = 0, 0
-	for i = 1, #raw do
-		local char = raw:sub(i, i)
-		if char == '=' then
-			if i % 4 == 0 then -- one padding byte
-				file.write(string.char(bit32.extract(buf, 10, 8), bit32.extract(buf, 2, 8)))
-			else -- two padding bytes
-				file.write(string.char(bit32.extract(buf, 4, 8)))
+	run_on_src('w', function(file)
+		file.write(('-- %s\n'):format(json.sha))
+		local b = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+		local raw = json.content:gsub('\n', '')
+		local buf = 0
+		for i = 1, #raw do
+			local char = raw:sub(i, i)
+			if char == '=' then
+				if i % 4 == 0 then -- one padding byte
+					file.write(string.char(bit32.extract(buf, 10, 8), bit32.extract(buf, 2, 8)))
+				else -- two padding bytes
+					file.write(string.char(bit32.extract(buf, 4, 8)))
+				end
+				break
 			end
-			break
+			local n = b:find(char) - 1
+			buf = bit32.lshift(buf, 6) + n
+			if i % 4 == 0 then
+				file.write(string.char(
+					bit32.extract(buf, 16, 8),
+					bit32.extract(buf, 8, 8),
+					bit32.extract(buf, 0, 8)))
+				buf = 0
+			end
 		end
-		local n = b:find(char) - 1
-		buf = bit32.lshift(buf, 6) + n
-		if i % 4 == 0 then
-			file.write(string.char(
-				bit32.extract(buf, 16, 8),
-				bit32.extract(buf, 8, 8),
-				bit32.extract(buf, 0, 8)))
-			buf = 0
-		end
-	end
-	file.close()
+	end)
 	return true
 end
 local function update()
@@ -52,13 +67,10 @@ local function update()
 	repeat
 		local from2, src = rednet.receive('update-multi-chat', 5)
 		if from2 == from then
-			local file = fs.open(shell.getRunningProgram(), 'w')
-			file.write(src)
-			file.close()
-			print 'Updated'
+			run_on_src('w', 'write', src)
 			return false
 		end
-	until os.clock() - to > 5
+	until os.clock() - t0 > 5
 	print 'Did not get update'
 	return false
 end
@@ -80,11 +92,10 @@ elseif args[1] == 'run' then
 		function() os.run(shellEnv, 'rom/programs/shell.lua') end,
 		args[2] and function()
 			local hash = get_hash()
-			local file = fs.open(shell.getRunningProgram(), 'r')
-			local src = file.readAll()
-			file.close()
+			local src = run_on_src('r', 'readAll')
 			while true do
 				local from, cmd = rednet.receive 'update-multi-chat'
+				--- @cast from -nil -- since there is no timeout
 				if cmd == 'get-hash' then
 					rednet.send(from, hash, 'update-multi-chat')
 				elseif cmd == 'get' then
