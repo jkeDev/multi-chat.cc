@@ -1,6 +1,6 @@
 local args = { ... }
 
-local version = '0.1.x'
+local version = '0.2.x'
 local meta_protocol = 'update-multi-chat' -- ('multi-chat-%s'):format(version)
 local function run_on_src(mode, method, ...)
 	local file = fs.open(shell.getRunningProgram(), mode)
@@ -84,6 +84,8 @@ if #args <= 0 then
 	peripheral.find('modem', rednet.open)
 	os.run(shellEnv, shell.getRunningProgram(), 'run', update())
 elseif args[1] == 'run' then
+	print 'Major update installed...'
+	os.reboot()
 	term.clear()
 	for name, protocol in pairs {
 		chat = 'rednet-chat',
