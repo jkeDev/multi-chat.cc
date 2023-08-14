@@ -1,5 +1,7 @@
 local args = { ... }
 
+local version = '0.1.x'
+local meta_protocol = 'update-multi-chat' -- ('multi-chat-%s'):format(version)
 local function run_on_src(mode, method, ...)
 	local file = fs.open(shell.getRunningProgram(), mode)
 	--- @cast file -nil -- since it should always exist
@@ -19,7 +21,9 @@ end
 local function get_hash() return run_on_src('r', 'readLine') end
 local function update_from_source()
 	print 'Trying remote source'
-	local response, err, errResponse = http.get 'https://api.github.com/repos/jkeDev/multi-chat.cc/contents/startup.lua'
+	local response, err, errResponse = http.get(
+		('https://api.github.com/repos/%s/%s/contents/%s?ref=%s')
+		:format('jkeDev', 'multi-chat.cc', 'startup.lua', version))
 	--- @cast errResponse -nil when response is null
 	if response == nil then error(('[%s] %s'):format(errResponse.getResponseCode(), err)) end
 	local json = textutils.unserializeJSON(response.readAll() or '', { parse_empty_array = false }) or {}
@@ -58,14 +62,14 @@ local function update_from_source()
 end
 local function update()
 	print 'Checking for updates'
-	rednet.broadcast('get-hash', 'update-multi-chat')
-	local from, hash = rednet.receive('update-multi-chat', 5)
+	rednet.broadcast('get-hash', meta_protocol)
+	local from, hash = rednet.receive(meta_protocol, 5)
 	if from == nil then return http ~= nil and update_from_source() end
 	if hash == get_hash() then return false end
-	rednet.send(from, 'get', 'update-multi-chat')
+	rednet.send(from, 'get', meta_protocol)
 	local t0 = os.clock()
 	repeat
-		local from2, src = rednet.receive('update-multi-chat', 5)
+		local from2, src = rednet.receive(meta_protocol, 5)
 		if from2 == from then
 			run_on_src('w', 'write', src)
 			return false
@@ -94,12 +98,12 @@ elseif args[1] == 'run' then
 			local hash = get_hash()
 			local src = run_on_src('r', 'readAll')
 			while true do
-				local from, cmd = rednet.receive 'update-multi-chat'
+				local from, cmd = rednet.receive(meta_protocol)
 				--- @cast from -nil -- since there is no timeout
 				if cmd == 'get-hash' then
-					rednet.send(from, hash, 'update-multi-chat')
+					rednet.send(from, hash, meta_protocol)
 				elseif cmd == 'get' then
-					rednet.send(from, src, 'update-multi-chat')
+					rednet.send(from, src, meta_protocol)
 				end
 			end
 		end or function() end
