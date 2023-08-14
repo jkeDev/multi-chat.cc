@@ -1,7 +1,7 @@
 local args = { ... }
 
-local version = '0.1.x'
-local meta_protocol = 'update-multi-chat' -- ('multi-chat-%s'):format(version)
+local version = '0.2.x'
+local meta_protocol = ('multi-chat-%s'):format(version)
 local function run_on_src(mode, method, ...)
 	local file = fs.open(shell.getRunningProgram(), mode)
 	--- @cast file -nil -- since it should always exist
@@ -23,7 +23,7 @@ local function update_from_source()
 	print 'Trying remote source'
 	local response, err, errResponse = http.get(
 		('https://api.github.com/repos/%s/%s/contents/%s?ref=%s')
-		:format('jkeDev', 'multi-chat.cc', 'startup.lua', version))
+		:format('jkeDev', 'multi-chat.cc', 'client.lua', version))
 	--- @cast errResponse -nil when response is null
 	if response == nil then error(('[%s] %s'):format(errResponse.getResponseCode(), err)) end
 	local json = textutils.unserializeJSON(response.readAll() or '', { parse_empty_array = false }) or {}
@@ -66,7 +66,7 @@ local function update()
 	local from, hash = rednet.receive(meta_protocol, 5)
 	if from == nil then return http ~= nil and update_from_source() end
 	if hash == get_hash() then return false end
-	rednet.send(from, 'get', meta_protocol)
+	rednet.send(from, 'get-src', meta_protocol)
 	local t0 = os.clock()
 	repeat
 		local from2, src = rednet.receive(meta_protocol, 5)
@@ -102,7 +102,7 @@ elseif args[1] == 'run' then
 				--- @cast from -nil -- since there is no timeout
 				if cmd == 'get-hash' then
 					rednet.send(from, hash, meta_protocol)
-				elseif cmd == 'get' then
+				elseif cmd == 'get-src' then
 					rednet.send(from, src, meta_protocol)
 				end
 			end
