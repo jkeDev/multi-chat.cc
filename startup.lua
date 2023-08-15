@@ -23,11 +23,11 @@ local function update_from_source()
 	print 'Trying remote source'
 	local response, err, errResponse = http.get(
 		('https://api.github.com/repos/%s/%s/contents/%s?ref=%s')
-		:format('jkeDev', 'multi-chat.cc', 'startup.lua', version))
+		:format('jkeDev', 'multi-chat.cc', 'client.lua', version))
 	--- @cast errResponse -nil when response is null
 	if response == nil then error(('[%s] %s'):format(errResponse.getResponseCode(), err)) end
 	local json = textutils.unserializeJSON(response.readAll() or '', { parse_empty_array = false }) or {}
-	if type(json.sha) ~= 'string' or type(json.content) == 'string' then
+	if type(json.sha) ~= 'string' or type(json.content) ~= 'string' then
 		error 'Mailformed response from github'
 	end
 	if get_hash() == json.sha then return true end
