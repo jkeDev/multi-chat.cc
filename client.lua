@@ -120,7 +120,8 @@ if #args <= 0 then
 	os.run(shellEnv, shell.getRunningProgram(), 'run')
 elseif args[1] == 'update' then
 	peripheral.find('modem', rednet.open)
-	update()
+	--update()
+	update_from_source()
 	os.reboot()
 elseif args[1] == 'run' then
 	term.clear()
