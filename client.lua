@@ -141,6 +141,8 @@ elseif args[1] == 'update' then
 elseif args[1] == 'run' then
 	term.clear()
 	term.setCursorPos(1, 1)
+	local name = os.getComputerLabel()
+	if name ~= nil then rednet.broadcast({ cmd = 'set-name', name = name }, meta_protocol) end
 	parallel.waitForAll(
 		function() os.run(shellEnv, 'rom/programs/shell.lua') end,
 		handle_meta_messages(false),
