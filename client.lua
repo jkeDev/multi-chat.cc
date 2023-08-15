@@ -91,6 +91,7 @@ local function handle_meta_messages(only_supply_updates)
 	return function()
 		local hash = get_hash()
 		local src = run_on_src('r', 'readAll')
+		local username = os.getComputerLabel()
 		local active_protocols = {}
 		local users = setmetatable({
 			[os.getComputerID()] = 'You',
@@ -117,6 +118,7 @@ local function handle_meta_messages(only_supply_updates)
 					multishell.setTitle(pid, name or protocol)
 					active_protocols[protocol] = true
 				end
+				if username ~= nil then rednet.broadcast({ cmd = 'set-name', name = username }, meta_protocol) end
 			elseif cmd == 'set-name' then
 				users[from] = mes.name
 			end
@@ -147,11 +149,13 @@ elseif args[1] == 'run' then
 		function() os.run(shellEnv, 'rom/programs/shell.lua') end,
 		handle_meta_messages(false),
 		function()
-			os.queueEvent('rednet_message', -1, {
+			local global_chat = {
 				cmd = 'open-chat',
 				protocol = 'rednet-chat',
 				name = 'chat'
-			}, meta_protocol)
+			}
+			os.queueEvent('rednet_message', -1, global_chat, meta_protocol)
+			rednet.broadcast(global_chat, meta_protocol)
 		end
 	)
 elseif args[1] == 'rednet' then
