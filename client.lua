@@ -121,6 +121,7 @@ if #args <= 0 then
 elseif args[1] == 'update' then
 	peripheral.find('modem', rednet.open)
 	update()
+	os.reboot()
 elseif args[1] == 'run' then
 	term.clear()
 	term.setCursorPos(1, 1)
