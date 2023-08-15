@@ -1,6 +1,6 @@
 local args = { ... }
 
-local version = '0.2.x'
+local version = '0.3.x'
 local meta_protocol = ('multi-chat-%s'):format(version)
 local shellEnv = { shell = shell, multishell = multishell }
 local function run_on_src(mode, method, ...)
