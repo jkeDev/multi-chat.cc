@@ -105,7 +105,7 @@ elseif args[1] == 'run' then
 						return
 					end
 					if active_protocols[protocol] == nil then
-						local pid = multishell.launch(shellEnv, shell.getRunningProgram(), 'rednet', protocol)
+						local pid = multishell.launch(shellEnv, shell.getRunningProgram(), 'rednet', protocol, name)
 						multishell.setTitle(pid, name or protocol)
 						active_protocols[protocol] = true
 					end
@@ -159,7 +159,7 @@ elseif args[1] == 'rednet' then
 						notifyTimer = os.startTimer(5)
 						notifyTerm.setVisible(true)
 						withTerm(notifyTerm,
-							print, ('%s\n%d: %s'):format(args[3], from, message))
+							print, ('%s\n%d: %s'):format(args[3] or protocol, from, message))
 					end
 					withTerm(messageScreen,
 						print, ('%5d: %s'):format(from, message))
