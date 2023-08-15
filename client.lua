@@ -85,7 +85,6 @@ if #args <= 0 then
 	update()
 	os.run(shellEnv, shell.getRunningProgram(), 'run')
 elseif args[1] == 'run' then
-	os.queueEvent('rednet', -1, { cmd = 'open-chat', protocol = 'rednet-chat', name = 'chat' }, meta_protocol)
 	term.clear()
 	term.setCursorPos(1, 1)
 	parallel.waitForAll(
@@ -116,10 +115,17 @@ elseif args[1] == 'run' then
 				local from, mes = rednet.receive(meta_protocol)
 				if type(mes) == 'string' then
 					handle_message(from, mes, {})
-				elseif type(mes) == 'tablbe' then
+				elseif type(mes) == 'table' then
 					handle_message(from, mes.cmd, mes)
 				end
 			end
+		end,
+		function()
+			os.queueEvent('rednet_message', -1, {
+				cmd = 'open-chat',
+				protocol = 'rednet-chat',
+				name = 'chat'
+			}, meta_protocol)
 		end
 	)
 elseif args[1] == 'rednet' then
