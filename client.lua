@@ -2,6 +2,7 @@ local args = { ... }
 
 local version = '0.2.x'
 local meta_protocol = ('multi-chat-%s'):format(version)
+local shellEnv = { shell = shell, multishell = multishell }
 local function run_on_src(mode, method, ...)
 	local file = fs.open(shell.getRunningProgram(), mode)
 	--- @cast file -nil -- since it should always exist
@@ -78,39 +79,42 @@ local function update()
 	until os.clock() - t0 > 5
 	print 'Did not get update'
 end
-local function host_update()
-	local hash = get_hash()
-	local src = run_on_src('r', 'readAll')
-	local active_protocols = {}
-	local function handle_message(from, cmd, mes)
-		if cmd == 'get-hash' then
-			rednet.send(from, hash, meta_protocol)
-		elseif cmd == 'get-src' then
-			rednet.send(from, src, meta_protocol)
-		elseif cmd == 'open-chat' then
-			local protocol, name = mes.protocol, mes.name
-			if type(protocol) ~= 'string'
-				or (name ~= nil and type(name) ~= 'string') then
+local function handle_meta_messages(only_supply_updates)
+	return function()
+		local hash = get_hash()
+		local src = run_on_src('r', 'readAll')
+		local active_protocols = {}
+		local function handle_message(from, cmd, mes)
+			if cmd == 'get-hash' then
+				rednet.send(from, hash, meta_protocol)
+			elseif cmd == 'get-src' then
+				rednet.send(from, src, meta_protocol)
+			elseif only_supply_updates then
 				return
-			end
-			if active_protocols[protocol] == nil then
-				local pid = multishell.launch(shellEnv, shell.getRunningProgram(), 'rednet', protocol, name)
-				multishell.setTitle(pid, name or protocol)
-				active_protocols[protocol] = true
+			elseif cmd == 'open-chat' then
+				local protocol, name = mes.protocol, mes.name
+				if type(protocol) ~= 'string'
+					or (name ~= nil and type(name) ~= 'string') then
+					return
+				end
+				if active_protocols[protocol] == nil then
+					local pid = multishell.launch(shellEnv, shell.getRunningProgram(), 'rednet', protocol, name)
+					multishell.setTitle(pid, name or protocol)
+					active_protocols[protocol] = true
+				end
 			end
 		end
-	end
-	while true do
-		local from, mes = rednet.receive(meta_protocol)
-		if type(mes) == 'string' then
-			handle_message(from, mes, {})
-		elseif type(mes) == 'table' then
-			handle_message(from, mes.cmd, mes)
+		while true do
+			local from, mes = rednet.receive(meta_protocol)
+			if type(mes) == 'string' then
+				handle_message(from, mes, {})
+			elseif type(mes) == 'table' then
+				handle_message(from, mes.cmd, mes)
+			end
 		end
 	end
 end
 
-local shellEnv = { shell = shell, multishell = multishell }
 if #args <= 0 then
 	os.run(shellEnv, shell.getRunningProgram(), 'update')
 	os.run(shellEnv, shell.getRunningProgram(), 'run')
@@ -122,7 +126,7 @@ elseif args[1] == 'run' then
 	term.setCursorPos(1, 1)
 	parallel.waitForAll(
 		function() os.run(shellEnv, 'rom/programs/shell.lua') end,
-		host_update,
+		handle_meta_messages(false),
 		function()
 			os.queueEvent('rednet_message', -1, {
 				cmd = 'open-chat',
@@ -198,7 +202,7 @@ elseif args[1] == 'rednet-bot' then
 	local protocol = args[2]
 	rednet.broadcast({ cmd = 'open-chat', protocol = protocol }, meta_protocol)
 	parallel.waitForAny(
-		host_update,
+		handle_meta_messages(true),
 		function()
 			os.run({
 				shell = shell,
