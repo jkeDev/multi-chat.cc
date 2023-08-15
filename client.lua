@@ -168,7 +168,17 @@ elseif args[1] == 'rednet' then
 			function()
 				while true do
 					local _, id = os.pullEvent 'timer'
-					if id == notifyTimer then notifyTerm.setVisible(false) end
+					if id == notifyTimer then
+						notifyTerm.setVisible(false)
+						os.queueEvent 'term_resize'
+					end
+				end
+			end,
+			function()
+				while true do
+					os.pullEvent 'term_resize'
+					messageScreen.redraw()
+					inputField.redraw()
 				end
 			end,
 			function()
