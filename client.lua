@@ -92,6 +92,13 @@ local function handle_meta_messages(only_supply_updates)
 		local hash = get_hash()
 		local src = run_on_src('r', 'readAll')
 		local active_protocols = {}
+		local users = setmetatable({
+			[os.getComputerID()] = 'You',
+		}, {
+			__index = function(_, from)
+				return ('%5d'):format(from)
+			end
+		})
 		local function handle_message(from, cmd, mes)
 			if cmd == 'get-hash' then
 				rednet.send(from, { cmd = 'hash', hash = hash }, meta_protocol)
@@ -106,10 +113,12 @@ local function handle_meta_messages(only_supply_updates)
 					return
 				end
 				if active_protocols[protocol] == nil then
-					local pid = multishell.launch(shellEnv, shell.getRunningProgram(), 'rednet', protocol, name)
+					local pid = multishell.launch(shellEnv, shell.getRunningProgram(), 'rednet', protocol, name, users)
 					multishell.setTitle(pid, name or protocol)
 					active_protocols[protocol] = true
 				end
+			elseif cmd == 'set-name' then
+				users[from] = mes.name
 			end
 		end
 		while true do
@@ -145,6 +154,7 @@ elseif args[1] == 'run' then
 	)
 elseif args[1] == 'rednet' then
 	local protocol = args[2]
+	local users = args[4]
 	if protocol == nil then
 	else
 		local parent = term.current()
@@ -174,10 +184,10 @@ elseif args[1] == 'rednet' then
 						notifyTimer = os.startTimer(5)
 						notifyTerm.setVisible(true)
 						withTerm(notifyTerm,
-							print, ('%s\n%d: %s'):format(args[3] or protocol, from, message))
+							print, ('%s\n%s: %s'):format(args[3] or protocol, users[from], message))
 					end
 					withTerm(messageScreen,
-						print, ('%5d: %s'):format(from, message))
+						print, ('%s: %s'):format(users[from], message))
 				end
 			end,
 			function()
@@ -201,7 +211,7 @@ elseif args[1] == 'rednet' then
 					inputField.write '> '
 					local message = withTerm(inputField, read)
 					rednet.broadcast(message, protocol)
-					withTerm(messageScreen, print, ('You: %s'):format(message))
+					rednet.send(os.getComputerID(), message, protocol)
 				end
 			end
 		)
@@ -209,6 +219,13 @@ elseif args[1] == 'rednet' then
 elseif args[1] == 'rednet-bot' then
 	local protocol = args[2]
 	rednet.broadcast({ cmd = 'open-chat', protocol = protocol }, meta_protocol)
+	rednet.broadcast({
+		cmd = 'set-name',
+		name =
+			turtle and 'Turtle'
+			or (pocket and 'Pocket'
+				or 'Server')
+	}, meta_protocol)
 	parallel.waitForAny(
 		handle_meta_messages(true),
 		function()
