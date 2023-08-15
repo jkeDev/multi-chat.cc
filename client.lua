@@ -85,12 +85,7 @@ if #args <= 0 then
 	update()
 	os.run(shellEnv, shell.getRunningProgram(), 'run')
 elseif args[1] == 'run' then
-	for name, protocol in pairs {
-		chat = 'rednet-chat',
-	} do
-		local pid = multishell.launch(shellEnv, shell.getRunningProgram(), 'rednet', protocol, name)
-		multishell.setTitle(pid, name)
-	end
+	os.queueEvent('rednet', -1, { cmd = 'open-chat', protocol = 'rednet-chat', name = 'chat' }, meta_protocol)
 	term.clear()
 	term.setCursorPos(1, 1)
 	parallel.waitForAll(
@@ -98,13 +93,31 @@ elseif args[1] == 'run' then
 		function()
 			local hash = get_hash()
 			local src = run_on_src('r', 'readAll')
-			while true do
-				local from, cmd = rednet.receive(meta_protocol)
-				--- @cast from -nil -- since there is no timeout
+			local active_protocols = {}
+			local function handle_message(from, cmd, mes)
 				if cmd == 'get-hash' then
 					rednet.send(from, hash, meta_protocol)
 				elseif cmd == 'get-src' then
 					rednet.send(from, src, meta_protocol)
+				elseif cmd == 'open-chat' then
+					local protocol, name = mes.protocol, mes.name
+					if type(protocol) ~= 'string'
+						or (name ~= nil and type(name) ~= 'string') then
+						return
+					end
+					if active_protocols[protocol] == nil then
+						local pid = multishell.launch(shellEnv, shell.getRunningProgram(), 'rednet', protocol)
+						multishell.setTitle(pid, name or protocol)
+						active_protocols[protocol] = true
+					end
+				end
+			end
+			while true do
+				local from, mes = rednet.receive(meta_protocol)
+				if type(mes) == 'string' then
+					handle_message(from, mes, {})
+				elseif type(mes) == 'tablbe' then
+					handle_message(from, mes.cmd, mes)
 				end
 			end
 		end
