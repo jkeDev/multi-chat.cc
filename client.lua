@@ -63,21 +63,29 @@ end
 local function update()
 	print 'Checking for updates'
 	rednet.broadcast('get-hash', meta_protocol)
-	local from, hash = rednet.receive(meta_protocol, 5)
-	if from == nil then
-		if http ~= nil then update_from_source() end
-		return
-	end
-	if hash == get_hash() then return end
-	rednet.send(from, 'get-src', meta_protocol)
-	local t0 = os.clock()
+	local tEnd, from, from2, mes = 5 + os.clock(), nil, nil, nil
 	repeat
-		local from2, src = rednet.receive(meta_protocol, 5)
-		if from2 == from then
-			run_on_src('w', 'write', src)
+		from, mes = rednet.receive(meta_protocol, tEnd - os.clock())
+		if from == nil then
+			if http ~= nil then update_from_source() end
+			return
 		end
-	until os.clock() - t0 > 5
-	print 'Did not get update'
+	until type(mes) == 'table' and mes.cmd == 'hash'
+	--- @cast from -nil Cannot escape previous loop with from equals nil
+	--- @cast mes -nil See above
+	if mes.hash == get_hash() then return end
+	rednet.send(from, 'get-src', meta_protocol)
+	tEnd = 5 + os.clock()
+	repeat
+		from2, mes = rednet.receive(meta_protocol, tEnd - os.clock())
+		if from2 == nil then
+			print 'Did not get update'
+			if http ~= nil then update_from_source() end
+			return
+		end
+	until from2 == from and type(mes) == 'table' and mes.cmd == 'src'
+	--- @cast mes -nil See above
+	run_on_src('w', 'write', mes.src)
 end
 local function handle_meta_messages(only_supply_updates)
 	return function()
@@ -86,9 +94,9 @@ local function handle_meta_messages(only_supply_updates)
 		local active_protocols = {}
 		local function handle_message(from, cmd, mes)
 			if cmd == 'get-hash' then
-				rednet.send(from, hash, meta_protocol)
+				rednet.send(from, { cmd = 'hash', hash = hash }, meta_protocol)
 			elseif cmd == 'get-src' then
-				rednet.send(from, src, meta_protocol)
+				rednet.send(from, { cmd = 'src', src = src }, meta_protocol)
 			elseif only_supply_updates then
 				return
 			elseif cmd == 'open-chat' then
