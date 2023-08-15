@@ -27,8 +27,8 @@ local function update_from_source()
 	--- @cast errResponse -nil when response is null
 	if response == nil then error(('[%s] %s'):format(errResponse.getResponseCode(), err)) end
 	local json = textutils.unserializeJSON(response.readAll() or '', { parse_empty_array = false }) or {}
-	if type(json.sha) ~= 'string' or type(json.content) == 'string' then
-		error 'Mailformed response from github'
+	if type(json.sha) ~= 'string' or type(json.content) ~= 'string' then
+		error 'Malformed response from github'
 	end
 	if get_hash() == json.sha then return end
 	if json.encoding ~= 'base64' then error(('Upstream is in non base64 encoding: %s'):format(json.encoding)) end
