@@ -1,6 +1,9 @@
 # Multichat.cc
 
-A simple projekt that adds a chat interface over rednet protocols
+~~A simple projekt that adds a chat interface over rednet protocols~~
+Use the standart `chat` program instead. Most features can be completly replaced
+by using `chat host global` on one maschine and `bg chat join global <username>` on
+all clients.
 
 ## Usage
 ### Client
